@@ -31,7 +31,7 @@ bfda_fixed_h1 <- BFDA.sim(expected.ES = d_of_interest,
                           n.max       = max_n,
                           verbose     = TRUE)
 BFDA.analyze(bfda_fixed_h0, design = "fixed", n = max_n, boundary = evidence_boundary)
-BFDA.analyze(bfda_fixed_h1, design = "fixed", n = nax_n, boundary = evidence_boundary)
+BFDA.analyze(bfda_fixed_h1, design = "fixed", n = max_n, boundary = evidence_boundary)
 BFDA::evDens(BFDA.H1 = bfda_fixed_h1, BFDA.H0 = bfda_fixed_h0, n = max_n, boundary = evidence_boundary)
 
 ## sequential ----
