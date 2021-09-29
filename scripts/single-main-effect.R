@@ -9,8 +9,9 @@ prior_alternative <- list("Cauchy", list(prior.location = prior_location, prior.
 
 d_of_interest  <- 0.5
 
-min_n <- 20
-max_n <- 100
+min_n <- 5
+max_n <- 50
+step_size <- 5
 
 evidence_boundary <- 10
 # Using BFDA package ----
