@@ -73,57 +73,52 @@ BFDA.analyze(bfda_0, design = "fixed", n = current_n, boundary = evidence_bounda
 bfda_seq_h0 <- BFDA.sim(expected.ES = 0,
                         type        = "t.paired",
                         prior       = prior_alternative,
+                        alternative = "greater",
                         design      = "sequential",
                         boundary    = evidence_boundary,
                         n.min       = min_n,
                         n.max       = max_n,
                         stepsize    = 1,
-                        verbose     = TRUE,
-                        cores       = 4,
-                        ETA         = TRUE)
+                        cores       = 4)
 
-bfda_seq_h1 <- BFDA.sim(expected.ES = sim_d,
+bfda_seq_h1 <- BFDA.sim(expected.ES = d_of_interest,
                         type        = "t.paired",
                         prior       = prior_alternative,
+                        alternative = "greater",
                         design      = "sequential",
                         boundary    = evidence_boundary,
                         n.min       = min_n,
                         n.max       = max_n,
                         stepsize    = 1,
-                        verbose     = TRUE,
-                        cores       = 4,
-                        ETA         = TRUE)
+                        cores       = 4)
 BFDA.analyze(bfda_seq_h0, design = "sequential", n.min = min_n, n.max = max_n, boundary = evidence_boundary)
 BFDA.analyze(bfda_seq_h1, design = "sequential", n.min = min_n, n.max = max_n, boundary = evidence_boundary)
 plotBFDA(bfda_seq_h1, boundary = evidence_boundary, n.min = min_n, n.max = max_n)
 
-## sequential stepsize 20 ----
-bfda_seq20_h0 <- BFDA.sim(expected.ES = 0,
-                        type        = "t.paired",
-                        prior       = prior_alternative,
-                        design      = "sequential",
-                        boundary    = evidence_boundary,
-                        n.min       = min_n,
-                        n.max       = max_n,
-                        stepsize    = 20,
-                        verbose     = TRUE,
-                        cores       = 4,
-                        ETA         = TRUE)
-BFDA.analyze(bfda_seq20_h0, design = "sequential", n.min = min_n, n.max = max_n, boundary = evidence_boundary)
+## sequential with stepsize ----
+bfda_seqstep_h0 <- BFDA.sim(expected.ES = 0,
+                            type        = "t.paired",
+                            prior       = prior_alternative,
+                            alternative = "greater",
+                            design      = "sequential",
+                            boundary    = evidence_boundary,
+                            n.min       = min_n,
+                            n.max       = max_n,
+                            stepsize    = step_size,
+                            cores       = 4)
 
-bfda_seq20_h1 <- BFDA.sim(expected.ES = sim_d,
-                          type        = "t.paired",
-                          prior       = prior_alternative,
-                          design      = "sequential",
-                          boundary    = evidence_boundary,
-                          n.min       = min_n,
-                          n.max       = max_n,
-                          stepsize    = 20,
-                          verbose     = TRUE,
-                          cores       = 4,
-                          ETA         = TRUE)
-BFDA.analyze(bfda_seq20_h1, design = "sequential", n.min = min_n, n.max = max_n, boundary = evidence_boundary)
-plotBFDA(bfda_seq20_h1, boundary = evidence_boundary, n.min = min_n, n.max = max_n)
+bfda_seqstep_h1 <- BFDA.sim(expected.ES = d_of_interest,
+                            type        = "t.paired",
+                            prior       = prior_alternative,
+                            alternative = "greater",
+                            design      = "sequential",
+                            boundary    = evidence_boundary,
+                            n.min       = min_n,
+                            n.max       = max_n,
+                            stepsize    = step_size,
+                            cores       = 4)
+BFDA.analyze(bfda_seqstep_h0, design = "sequential", n.min = min_n, n.max = max_n, boundary = evidence_boundary)
+BFDA.analyze(bfda_seqstep_h1, design = "sequential", n.min = min_n, n.max = max_n, boundary = evidence_boundary)
+plotBFDA(bfda_seqstep_h1, boundary = evidence_boundary, n.min = min_n, n.max = max_n)
 
 
-# Using BRMS package----
