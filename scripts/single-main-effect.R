@@ -94,10 +94,11 @@ bfda_seq_h1 <- BFDA.sim(expected.ES = d_of_interest,
 BFDA.analyze(bfda_seq_h0, design = "sequential", n.min = min_n, n.max = max_n, boundary = evidence_boundary)
 BFDA.analyze(bfda_seq_h1, design = "sequential", n.min = min_n, n.max = max_n, boundary = evidence_boundary)
 
-par(mfrow = c(2, 1))
+
 plotBFDA(bfda_seq_h0, boundary = evidence_boundary, n.min = min_n, n.max = max_n)
+mtext(expression("Under"~H[0]))
 plotBFDA(bfda_seq_h1, boundary = evidence_boundary, n.min = min_n, n.max = max_n)
-par(mfrow = c(1, 1))
+mtext(expression("Under"~H[1]))
 
 ## sequential with stepsize ----
 bfda_seqstep_h0 <- BFDA.sim(expected.ES = 0,
