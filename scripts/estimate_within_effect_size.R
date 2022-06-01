@@ -1,6 +1,8 @@
 library(readxl)
 library(here)
 library(runjags)
+library(readxl)
+library(metafor)
 
 # Copy: https://osf.io/keq5a/ to your personal G Drive and export it as .xlsx file
 data <- readxl::read_xlsx(
@@ -51,7 +53,7 @@ pool_sd <- function(sd1, sd2) {
 
 data$cohen_d_from_summary_stats <- with(data, cohen_d(x_1, x_2, SD_1, SD_2))
 data$hedges_g <- with(data, cohen_d_from_summary_stats * (1 - 3 / (4*n_1 - 5)))
-data$hedges_g_se <- with(data, sqrt(2*(1-data$corr_final)/n_1 + hedges_g^2/(2*n_1)))
+data$hedges_g_se <- with(data, sqrt(2*(1-corr_final)/n_1 + hedges_g^2/(2*n_1)))
 
 
 # Calculate within subjects effect sizes
@@ -64,11 +66,14 @@ data$within_g <- with(
     hedges_g / sqrt(2*(1-corr_final))
   )
 )
+data$within_g_se <- with(
+  data,
+  sqrt((1/n_1 + within_g^2 / (2*n_1)) * 2*(1 - corr_final)) # Borenstein, Hedges, Higgins, & Rothstein, eq. 4.28
+)
 
 # Reproduce the original random effect meta-analysis (https://osf.io/yu9c3/) -----
 ran.ef.raw <- metafor::rma.mv(hedges_g, V = (hedges_g_se)^2, random = ~ article|lab,data = data)
 ran.ef.raw
-
 
 ## Reproduce in JAGS -----
 # The correlation structure could be improved since the original analysis
@@ -161,6 +166,34 @@ summary(samples_between_subjects)
 # => We can reproduce the results of the classical analysis, including CIs for the meta-analytic estimate
 
 # Meta-analysis of the correlations ----
+df <- subset(data, select = c("study", "article", "lab", "corr_z", "corr_z_se"))
+df <- na.omit(df)
+metafor::rma.mv(corr_z, V = (corr_z_se)^2, random = ~ 1|lab/article/study, data = df)
+# Multivariate Meta-Analysis Model (k = 78; method: REML)
+#
+# Variance Components:
+#
+#             estim    sqrt  nlvls  fixed             factor
+# sigma^2.1  0.0000  0.0000      8     no                lab
+# sigma^2.2  0.0224  0.1497     14     no        lab/article
+# sigma^2.3  0.0610  0.2470     78     no  lab/article/study
+#
+# Test for Heterogeneity:
+#   Q(df = 77) = 132.6103, p-val < .0001
+#
+# Model Results:
+#
+# estimate      se     zval    pval   ci.lb   ci.ub     ​
+#   0.7247  0.0636  11.4035  <.0001  0.6001  0.8493  ***
+
+# Convert the estimate on the transformed scale into a correlation scale
+tanh(c(estimate = 0.7247, lower = 0.6001, upper = 0.8493))
+# estimate    lower    upper
+#    0.620    0.537    0.691
+
+# this results in the following point estimate of the within-subjects effect size:
+0.25 / sqrt(2*(1-0.62)) # 0.29
+
 model <-
 "
 model{
@@ -218,104 +251,86 @@ summary(samples_correlation)
 
 
 # Estimating the within-subjects effect size ----
-## Assuming independence between the between subject effect size and the correlation ----
-between_d <- do.call(rbind.data.frame, samples_between_subjects$mcmc)$mu_pop
-corr      <- do.call(rbind.data.frame, samples_correlation$mcmc)$mu_pop_corr
-within_d  <- between_d / (2*(1-corr))
-hist(within_d)
-c(quantile(within_d, c(0.025, 0.25, 0.5, 0.75, 0.975)), mean = mean(within_d), sd = sd(within_d))
-
 
 ## Meta-analysis of the within subjects effect size ----
-# Here we estimate the within-subject effect size again but taking into account
-# the correlation between the between-subjects effect size and the correlation
-# between the two paired measurements.
+### Frequentist analysis ----
+#### Original model specification
+df <- subset(data, select = c("study", "article", "lab", "within_g", "within_g_se"))
+df <- na.omit(df)
+metafor::rma.mv(within_g, V = (within_g_se)^2, random = ~ article|lab,data = df)
+# estimate      se    zval    pval   ci.lb   ci.ub    ​
+#   0.4197  0.1313  3.1960  0.0014  0.1623  0.6770  **
+
+#### Nested model
+metafor::rma.mv(within_g, V = (within_g_se)^2, random = ~ 1|lab/article/study, data = df)
+# estimate      se    zval    pval   ci.lb   ci.ub   ​
+#   0.3574  0.1389  2.5727  0.0101  0.0851  0.6297  *
+
+### Bayesian analysis ----
 
 model <-
 "
 model{
-  for(i in 1:3) { # lab, article, study
-    for(j in 1:2) { # corr, hedges g
-      sigma[i, j] ~ dgamma(2, 6)
-    }
-    half_rho[i] ~ dbeta(2, 2)
-    rho[i] = half_rho[i] * 2 - 1
-
-    Sigma[i, 1, 1] = sigma[i, 1]*sigma[i, 1]
-    Sigma[i, 1, 2] = sigma[i, 1]*sigma[i, 2]*rho[i]
-    Sigma[i, 2, 1] = sigma[i, 2]*sigma[i, 1]*rho[i]
-    Sigma[i, 2, 2] = sigma[i, 2]*sigma[i, 2]
-  }
-
   for(i in 1:n_lab) {
-    lab_offset[i,1:2] ~ dmnorm.vcov(c(0, 0), Sigma[1,1:2,1:2])
+    lab_offset[i] ~ dnorm(0, tau_lab)
   }
 
   for(i in 1:n_article) {
-    article_offset[i,1:2] ~ dmnorm.vcov(c(0, 0), Sigma[2,1:2,1:2])
+    article_offset[i] ~ dnorm(0, tau_article)
   }
 
   for(i in 1:n_all) {
-    study_offset[i,1:2] ~ dmnorm.vcov(c(0, 0), Sigma[3,1:2,1:2])
-
-    corr_z[i] ~ dnorm(corr_mu_pop + lab_offset[lab[i],1] + article_offset[article[i],1] + study_offset[i,1], pow(corr_se[i], -2))
-    corr[i] <- tanh(corr_z[i])
-
-    betw_d[i] ~ dnorm(betw_mu_pop + lab_offset[lab[i],2] + article_offset[article[i],2] + study_offset[i,2], pow(betw_se[i], -2))
+    study_offset[i] ~ dnorm(0, tau_study)
+    d[i] ~ dnorm(mu_pop + lab_offset[lab[i]] + article_offset[article[i]] + study_offset[i], pow(se[i], -2))
   }
 
-  # priors for correlations
-  corr_mu_pop        ~ dnorm(0, 1)
-  corr_mu_pop_corr   <- tanh(corr_mu_pop)
+  mu_pop        ~ dnorm(0, 1)
+  # using weakly informative priors for the variance components:
+  # 1) It is unlikely that the variance is >> 1,
+  #    more likely somewhere in the 0-1 range
+  #    since the scale is a standardized effect size metric
+  # 2) Since there is a relatively small number of labs and articles,
+  #    the parameters are only weakly constrained by the data.
+  #    Using 'flat' priors would drag the estimates to unreasonably high values.
+  sigma_lab     ~ dgamma(2, 6)
+  sigma_article ~ dgamma(2, 6)
+  sigma_study   ~ dgamma(2, 6)
 
-  # priors for between subjects
-  betw_mu_pop        ~ dnorm(0, 1)
-
-  # calculate within subjects
-  with_mu_pop <- betw_mu_pop / (2 * (1-corr_mu_pop_corr))
+  tau_lab     <- pow(sigma_lab, -2)
+  tau_article <- pow(sigma_article, -2)
+  tau_study   <- pow(sigma_study, -2)
 }
 "
-df <- subset(data, select = c("study", "article", "lab", "hedges_g", "hedges_g_se", "corr_z", "corr_z_se"))
-df <- subset(df, subset = !is.na(hedges_g_se))
+
 jags_data <- list(
-  n_all     = nrow(df),
-  n_lab     = length(unique(df$lab)),
+  n_lab = length(unique(df$lab)),
+  lab = as.integer(as.factor(df$lab)),
   n_article = length(unique(df$article)),
-  corr_z    = df$corr_z,
-  corr_se   = df$corr_z_se,
-  betw_d    = df$hedges_g,
-  betw_se   = df$hedges_g_se,
-  lab       = as.integer(as.factor(df$lab)),
-  article   = as.integer(as.factor(df$article))
+  article = as.integer(as.factor(df$article)),
+  n_all = nrow(df),
+  d = df$within_g,
+  se = df$within_g_se
 )
 
 samples_within <- runjags::run.jags(
   model    = model,
-  monitor  = c("corr_mu_pop_corr", "betw_mu_pop", "with_mu_pop", "rho", "sigma"),
+  monitor  = c("mu_pop", "sigma_lab", "sigma_article", "sigma_study"),
   data     = jags_data,
   n.chains = 8,
-  sample   = 20000,
-  thin     = 2
+  sample   = 10000
 )
 summary(samples_within)
-#                  Lower95 Median Upper95   Mean    SD Mode MCerr MC%ofSD SSeff AC.10  psrf
-# corr_mu_pop_corr   0.507  0.620   0.726  0.617 0.056   NA 0.001     2.6  1538 0.618 1.005
-# betw_mu_pop       -0.002  0.252   0.519  0.257 0.129   NA 0.005     4.0   624 0.832 1.019
-# with_mu_pop       -0.008  0.328   0.723  0.344 0.189   NA 0.007     3.9   675 0.816 1.020
-# rho[1]            -0.863 -0.107   0.708 -0.088 0.432   NA 0.008     1.7  3269 0.364 1.001
-# rho[2]            -0.656  0.164   0.859  0.137 0.409   NA 0.009     2.1  2223 0.503 1.002
-# rho[3]            -0.201  0.245   0.682  0.242 0.226   NA 0.006     2.5  1566 0.604 1.003
-# sigma[1,1]         0.006  0.124   0.297  0.138 0.084   NA 0.003     3.2   994 0.626 1.004
-# sigma[2,1]         0.018  0.149   0.296  0.156 0.075   NA 0.002     3.2   957 0.670 1.005
-# sigma[3,1]         0.120  0.243   0.354  0.242 0.059   NA 0.002     3.5   800 0.763 1.005
-# sigma[1,2]         0.013  0.206   0.455  0.223 0.123   NA 0.005     4.1   588 0.651 1.036
-# sigma[2,2]         0.028  0.218   0.422  0.227 0.103   NA 0.005     4.4   516 0.716 1.010
-# sigma[3,2]         0.227  0.326   0.428  0.328 0.051   NA 0.001     2.3  1902 0.530 1.003
-within_d <- do.call(rbind.data.frame, samples_within$mcmc)$with_mu_pop
+#               Lower95 Median Upper95  Mean    SD Mode MCerr MC%ofSD SSeff AC.10  psrf
+# mu_pop          0.031  0.359   0.688 0.359 0.165   NA 0.005     2.9  1185 0.746 1.008
+# sigma_lab       0.010  0.200   0.487 0.224 0.138   NA 0.003     2.2  2050 0.553 1.006
+# sigma_article   0.143  0.390   0.673 0.399 0.133   NA 0.002     1.9  2896 0.429 1.003
+# sigma_study     0.400  0.509   0.631 0.513 0.059   NA 0.001     1.1  8486 0.140 1.001
+
+within_d <- do.call(rbind.data.frame, samples_within$mcmc)$mu_pop
 hist(within_d, breaks = 100, freq = FALSE)
+lines(density(within_d), lwd = 5)
 
-
-### Finding an appropriate representation of the prior distribution ----
+##### Finding an appropriate representation of the prior distribution ----
 # Now we have an estimate of the effect size, but we need to represent it in terms
 # of a probability distribution so that it can be used as a prior.
 # Here, we fit a scaled-shifted t-distribution to the MCMC samples of the
@@ -343,9 +358,9 @@ fn <- function(pars, data) {
 o <- optim(par = list(df = 2, center = 0, scale = 1), fn = fn, data = within_d,
            lower = c(1, -Inf, 0.001), upper = c(Inf, Inf, Inf),
            method = "L-BFGS-B", control = list(fnscale = -1))
-#    df center  scale
-# 5.646  0.333  0.151
+#     df center  scale
+# 10.293  0.358  0.148
 
 hist(within_d, breaks = 100, freq = FALSE)
-curve(dscaledt(x = x, df = o$par[[1]], center = o$par[[2]], scale = o$par[[3]]), add = TRUE, lwd = 2)
+curve(dscaledt(x = x, df = o$par[[1]], center = o$par[[2]], scale = o$par[[3]]), add = TRUE, lwd = 5)
 
