@@ -127,3 +127,43 @@ BFDA.analyze(bfda_seqstep_h1, design = "sequential", n.min = min_n, n.max = max_
 plotBFDA(bfda_seqstep_h1, boundary = evidence_boundary, n.min = min_n, n.max = max_n)
 
 
+# Add nice plots ----
+library(ggplot2)
+library(dplyr)
+
+df <- rbind(
+  bfda_fixed_h0$sim,
+  bfda_fixed_h1$sim
+)
+df$evidence <- case_when(
+  df$logBF < log(1/10) ~ "Null",
+  df$logBF > log(10)   ~ "Alternative",
+  TRUE ~ "Undecisive"
+) |>
+  as.factor()
+df$trueHypothesis <- ifelse(df$true.ES == 0, "Under null", "Under alternative") |>
+  factor(levels = c("Under null", "Under alternative"))
+
+
+ggplot(df, aes(x = logBF, fill = evidence)) +
+  geom_histogram(col = "black", boundary = log(1/10), binwidth = (log(10) - log(1/10))/10) +
+  geom_rug() +
+  geom_vline(xintercept = 0, linetype = 2, size = 0.8) +
+  geom_vline(xintercept = log(c(1/10, 10)), linetype = 3, size = 0.8) +
+  scale_x_continuous(
+    limits = log(c(1e-2, 1e5)),
+    breaks = log(c(1/100, 1/10, 1, 10, 1e2, 1e3, 1e4, 1e5)),
+    labels = c(expression(10^-2), expression(10^-1), "1", expression(10^1), expression(10^2), expression(10^3), expression(10^4), expression(10^5))
+  ) +
+  scale_fill_manual(
+    name = "Evidence",
+    values = c("steelblue", "gray", "yellow2"), # somewhat color-blind friendly setup
+    breaks = c("Null", "Undecisive", "Alternative")
+  ) +
+  facet_grid(trueHypothesis~.) +
+  theme_classic(base_size = 18) +
+  ylab("Count") +
+  xlab("log(BF)")
+ggsave(filename = "single-main-effect_fixed-n_bf-histogram.png",
+       path = here::here("figures"), width = 7, height = 5)
+
