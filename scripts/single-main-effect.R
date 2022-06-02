@@ -131,6 +131,7 @@ plotBFDA(bfda_seqstep_h1, boundary = evidence_boundary, n.min = min_n, n.max = m
 library(ggplot2)
 library(dplyr)
 
+## Figure 3: Fixed N, distribution of Bayes factors ----
 df <- rbind(
   bfda_fixed_h0$sim,
   bfda_fixed_h1$sim
@@ -167,3 +168,245 @@ ggplot(df, aes(x = logBF, fill = evidence)) +
 ggsave(filename = "single-main-effect_fixed-n_bf-histogram.png",
        path = here::here("figures"), width = 7, height = 5)
 
+
+## Figure 4: Sequential design.
+library(patchwork)
+
+### Under null ----
+df <- bfda_seq_h0$sim
+
+df$logBF <- case_when(
+  df$logBF < log(1/evidence_boundary) ~ log(1/evidence_boundary),
+  df$logBF > log(evidence_boundary) ~ log(evidence_boundary),
+  TRUE ~ df$logBF
+
+)
+df$crossed0 <- df$logBF <= log(1/10)
+df$crossed1 <- df$logBF >= log(10)
+
+xmax <- 60
+
+accumulation <- ggplot(df, aes(x = n, y = logBF, group = id)) +
+  geom_hline(yintercept = log(c(1/30, 1/10, 1/3, 1, 3, 10, 30)), linetype = 3, size = 0.3) +
+  geom_hline(yintercept = log(c(1/10, 10)), linetype = 2, size = 0.5) +
+  geom_point(aes(x = n, y = log(1/10)), data = subset(df, crossed0)) +
+  geom_point(aes(x = n, y = log(10)),   data = subset(df, crossed1)) +
+  geom_point(aes(x = 50, y = logBF), data = subset(df, !crossed0 & !crossed1 & n == 50)) +
+  geom_line(alpha = 0.05) +
+  geom_text(
+    aes(x = x, y = y, label = text),
+    data = data.frame(
+      x = xmax,
+      y = c(
+        mean(log(c(1/30, 1/10))),
+        mean(log(c(1/10, 1/3))),
+        mean(log(c(1/3,  1))),
+        mean(log(c(1,    3))),
+        mean(log(c(3,    10))),
+        mean(log(c(10,   30)))
+      ),
+      text = c(
+        "Strong H0",
+        "Moderate H0",
+        "Anecdotal H0",
+        "Anecdotal H1",
+        "Moderate H1",
+        "Strong H1"
+      )
+    ),
+    inherit.aes = FALSE,
+    hjust = 0.8,
+    size = 5.5
+  ) +
+  scale_x_continuous(
+    name = NULL,
+    guide = guide_none(),
+    breaks = seq(0, 50, by = 10),
+    limits = c(0, xmax)
+  ) +
+  scale_y_continuous(
+    name = "log(BF)",
+    breaks = log(c(1/30, 1/10, 1/3, 1, 3, 10, 30)),
+    labels = c("1/30", "1/10", "1/3", "1", "3", "10", "30")
+  ) +
+  theme_classic(base_size = 20)
+
+accumulation
+
+sampleSize0 <- ggplot(data = subset(df, crossed0), aes(x = n)) +
+  geom_histogram(breaks = seq(0, 50, by = 2.5), col = "black", fill = "gray", closed = "left") +
+  scale_x_continuous(
+    name = "Sample size",
+    breaks = seq(0, 50, by = 10),
+    limits = c(0, xmax)
+  ) +
+  scale_y_reverse(
+    name = NULL, guide = guide_none()
+  ) +
+  theme_classic(base_size = 20)
+sampleSize0
+
+sampleSize1 <- ggplot(data = subset(df, crossed1), aes(x = n)) +
+  geom_histogram(breaks = seq(0, 50, by = 2.5), col = "black", fill = "gray", closed = "left") +
+  scale_x_continuous(
+    name = NULL,
+    guide = guide_none(),
+    breaks = seq(0, 50, by = 10),
+    limits = c(0, xmax)
+    ) +
+  scale_y_continuous(
+    name = NULL,
+    guide = guide_none()
+  ) +
+  ggtitle("Under null") +
+  theme_classic(base_size = 20)
+sampleSize1
+
+evidenceAtStop <- ggplot(data = subset(df, n == 50), aes(x = logBF)) +
+  geom_histogram(
+    breaks = seq(log(1/evidence_boundary), log(evidence_boundary), length.out = 10),
+    col = "black", fill = "gray"
+    ) +
+  theme_classic(base_size = 18) +
+  coord_flip() +
+  scale_y_continuous(
+    name = NULL,
+    guide = guide_none()
+  ) +
+  scale_x_continuous(
+    name   = NULL,
+    guide  = guide_none(),
+    limits = c(log(1/30), log(30))
+  )
+
+evidenceAtStop
+
+sampleSize1 + plot_spacer() +
+  accumulation +  evidenceAtStop +
+  sampleSize0 + plot_spacer() +
+  patchwork::plot_layout(ncol = 2, heights = c(0.15, 0.7, 0.15), widths = c(0.85, 0.15))# +
+  #patchwork::plot_annotation(title = "Under null")
+
+ggsave(filename = "single-main-effect_sequential-h0_reworked.png",
+       path = here::here("figures"),
+       width = 10, height = 7)
+
+
+### Under alternative ----
+df <- bfda_seq_h1$sim
+
+df$logBF <- case_when(
+  df$logBF < log(1/evidence_boundary) ~ log(1/evidence_boundary),
+  df$logBF > log(evidence_boundary) ~ log(evidence_boundary),
+  TRUE ~ df$logBF
+
+)
+df$crossed0 <- df$logBF <= log(1/10)
+df$crossed1 <- df$logBF >= log(10)
+
+xmax <- 60
+
+accumulation <- ggplot(df, aes(x = n, y = logBF, group = id)) +
+  geom_hline(yintercept = log(c(1/30, 1/10, 1/3, 1, 3, 10, 30)), linetype = 3, size = 0.3) +
+  geom_hline(yintercept = log(c(1/10, 10)), linetype = 2, size = 0.5) +
+  #geom_point(aes(x = n, y = log(1/10)), data = subset(df, crossed0)) +
+  geom_point(aes(x = n, y = log(10)),   data = subset(df, crossed1)) +
+  geom_point(aes(x = 50, y = logBF), data = subset(df, !crossed0 & !crossed1 & n == 50)) +
+  geom_line(alpha = 0.05) +
+  geom_text(
+    aes(x = x, y = y, label = text),
+    data = data.frame(
+      x = xmax,
+      y = c(
+        mean(log(c(1/30, 1/10))),
+        mean(log(c(1/10, 1/3))),
+        mean(log(c(1/3,  1))),
+        mean(log(c(1,    3))),
+        mean(log(c(3,    10))),
+        mean(log(c(10,   30)))
+      ),
+      text = c(
+        "Strong H0",
+        "Moderate H0",
+        "Anecdotal H0",
+        "Anecdotal H1",
+        "Moderate H1",
+        "Strong H1"
+      )
+    ),
+    inherit.aes = FALSE,
+    hjust = 0.8,
+    size = 5.5
+  ) +
+  scale_x_continuous(
+    name = NULL,
+    guide = guide_none(),
+    breaks = seq(0, 50, by = 10),
+    limits = c(0, xmax)
+  ) +
+  scale_y_continuous(
+    name = "log(BF)",
+    breaks = log(c(1/30, 1/10, 1/3, 1, 3, 10, 30)),
+    labels = c("1/30", "1/10", "1/3", "1", "3", "10", "30")
+  ) +
+  theme_classic(base_size = 20)
+
+accumulation
+
+sampleSize0 <- ggplot(data = subset(df, crossed0), aes(x = n)) +
+  geom_histogram(breaks = seq(0, 50, by = 2.5), col = "black", fill = "gray", closed = "left") +
+  scale_x_continuous(
+    name = "Sample size",
+    breaks = seq(0, 50, by = 10),
+    limits = c(0, xmax)
+  ) +
+  scale_y_reverse(
+    name = NULL, guide = guide_none(), limits = c(0, 0)
+  ) +
+  theme_classic(base_size = 20)
+sampleSize0
+
+sampleSize1 <- ggplot(data = subset(df, crossed1), aes(x = n)) +
+  geom_histogram(breaks = seq(0, 50, by = 2.5), col = "black", fill = "gray", closed = "left") +
+  scale_x_continuous(
+    name = NULL,
+    guide = guide_none(),
+    breaks = seq(0, 50, by = 10),
+    limits = c(0, xmax)
+  ) +
+  scale_y_continuous(
+    name = NULL,
+    guide = guide_none()
+  ) +
+  ggtitle("Under alternative") +
+  theme_classic(base_size = 20)
+sampleSize1
+
+evidenceAtStop <- ggplot(data = subset(df, n == 50), aes(x = logBF)) +
+  geom_histogram(
+    breaks = seq(log(1/evidence_boundary), log(evidence_boundary), length.out = 10),
+    col = "black", fill = "gray"
+  ) +
+  theme_classic(base_size = 18) +
+  coord_flip() +
+  scale_y_continuous(
+    name = NULL,
+    guide = guide_none()
+  ) +
+  scale_x_continuous(
+    name   = NULL,
+    guide  = guide_none(),
+    limits = c(log(1/30), log(30))
+  )
+
+evidenceAtStop
+
+sampleSize1 + plot_spacer() +
+  accumulation +  evidenceAtStop +
+  sampleSize0 + plot_spacer() +
+  patchwork::plot_layout(ncol = 2, heights = c(0.15, 0.7, 0), widths = c(0.85, 0.15))# +
+#patchwork::plot_annotation(title = "Under null")
+
+ggsave(filename = "single-main-effect_sequential-h1_reworked.png",
+       path = here::here("figures"),
+       width = 10, height = 7)
