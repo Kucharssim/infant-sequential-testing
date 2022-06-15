@@ -1,0 +1,104 @@
+Fixed N design
+
+Fixed N design under null 
+0.7% showed evidence for H1 (BF > 10)
+74.1% were inconclusive (0.1 < BF < 10)
+25.2% showed evidence for H0 (BF < 0.1)
+Fixed N design under alternative 
+66.8% showed evidence for H1 (BF > 10)
+33.2% were inconclusive (0.1 < BF < 10)
+0% showed evidence for H0 (BF < 0.1)
+Fixed N design, calculate desired sample size 
+
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 51: 69.2%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 52: 70.4%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 53: 69.8%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 54: 70%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 55: 71.5%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 56: 72.5%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 57: 75%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 58: 75.8%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 59: 76%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 60: 76.1%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 61: 77.8%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 62: 77%.
+Percentage of studies that showed evidence for H1 (BF > 10) for sample size 63: 80.4%.
+[1] 63
+80.4% showed evidence for H1 (BF > 10)
+19.6% were inconclusive (0.1 < BF < 10)
+0% showed evidence for H0 (BF < 0.1)
+0.5% showed evidence for H1 (BF > 10)
+66.6% were inconclusive (0.1 < BF < 10)
+32.9% showed evidence for H0 (BF < 0.1)
+Sequential design 
+
+Sequential design under null 
+                              outcome percentage
+1 Studies terminating at n.max (n=50)      57.5%
+2   Studies terminating at a boundary      42.5%
+3      --> Terminating at H1 boundary       4.2%
+4      --> Terminating at H0 boundary      38.3%
+
+Of 57.5% of studies terminating at n.max (n=50):
+0.6% showed evidence for H1 (BF > 3)
+17.9% were inconclusive (3 > BF > 1/3)
+39% showed evidence for H0 (BF < 1/3)
+
+Average sample number (ASN) at stopping point (both boundary hits and n.max): n = 42
+
+Sample number quantiles (50/80/90/95%) at stopping point:
+50% 80% 90% 95% 
+ 50  50  50  50 
+Sequential design under alternative 
+                              outcome percentage
+1 Studies terminating at n.max (n=50)      21.2%
+2   Studies terminating at a boundary      78.8%
+3      --> Terminating at H1 boundary      78.8%
+4      --> Terminating at H0 boundary         0%
+
+Of 21.2% of studies terminating at n.max (n=50):
+8.6% showed evidence for H1 (BF > 3)
+12.5% were inconclusive (3 > BF > 1/3)
+0.1% showed evidence for H0 (BF < 1/3)
+
+Average sample number (ASN) at stopping point (both boundary hits and n.max): n = 30
+
+Sample number quantiles (50/80/90/95%) at stopping point:
+50% 80% 90% 95% 
+ 28  50  50  50 
+Sequential design with steps 
+
+Sequential design with steps under null 
+                              outcome percentage
+1 Studies terminating at n.max (n=50)      63.4%
+2   Studies terminating at a boundary      36.6%
+3      --> Terminating at H1 boundary       2.4%
+4      --> Terminating at H0 boundary      34.2%
+
+Of 63.4% of studies terminating at n.max (n=50):
+0.8% showed evidence for H1 (BF > 3)
+19.1% were inconclusive (3 > BF > 1/3)
+43.5% showed evidence for H0 (BF < 1/3)
+
+Average sample number (ASN) at stopping point (both boundary hits and n.max): n = 45
+
+Sample number quantiles (50/80/90/95%) at stopping point:
+50% 80% 90% 95% 
+ 50  50  50  50 
+Sequential design with steps under alternative 
+                              outcome percentage
+1 Studies terminating at n.max (n=50)      25.7%
+2   Studies terminating at a boundary      74.3%
+3      --> Terminating at H1 boundary      74.3%
+4      --> Terminating at H0 boundary         0%
+
+Of 25.7% of studies terminating at n.max (n=50):
+11.5% showed evidence for H1 (BF > 3)
+14.1% were inconclusive (3 > BF > 1/3)
+0.1% showed evidence for H0 (BF < 1/3)
+
+Average sample number (ASN) at stopping point (both boundary hits and n.max): n = 34
+
+Sample number quantiles (50/80/90/95%) at stopping point:
+50% 80% 90% 95% 
+ 35  50  50  50 
