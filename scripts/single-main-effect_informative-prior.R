@@ -4,9 +4,9 @@ sink(file = "informative-prior.Rout")
 # The following example assumes an uninformed "default" prior, but one-sided
 set.seed(2021)
 # the prior is determined in the script estimate_within_effect_size.R
-prior_alternative <- list("t", list(prior.df = 10.293, prior.location = 0.358, prior.scale = 0.148))
+prior_alternative <- list("t", list(prior.df = 19.767, prior.location = 0.443, prior.scale = 0.196))
 
-d_of_interest  <- 0.5
+d_of_interest  <- 0.45
 
 min_n <- 5
 max_n <- 50
