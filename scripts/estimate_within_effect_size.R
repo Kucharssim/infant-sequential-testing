@@ -18,8 +18,10 @@ data$t <- ifelse(
 )
 
 data$study <- seq_len(nrow(data))
-data <- subset(data, select = c("study", "study_ID", "Lab", "t", "n_1", "x_1", "x_2", "SD_1", "SD_2", "r"))
-colnames(data)[1:3] <- c("study", "article", "lab")
+data <- subset(data, select = c("study", "study_ID", "Lab", "Semantics", "Modality", "mean_age_1", "t", "n_1", "x_1", "x_2", "SD_1", "SD_2", "r"))
+colnames(data)[1:6] <- c("study", "article", "lab", "semantics", "modality", "age")
+data$semantics <- ordered(data$semantics, levels = c("Meaningless", "Meaningful"))
+data$modality  <- ordered(data$modality)
 
 # Calculate correlation using descriptive statistics and the within subject t-statistic
 # Csibra, Hernik, Mascaro, Tatone, and Lengyel (2016)
@@ -39,6 +41,11 @@ abline(0, 1)
 # if available, we take the reported correlation. Otherwise, we take the calculated correlation
 data$corr_final     <- ifelse(!is.na(data$r), data$r, data$corr_calculated)
 
+# impute weighted correlations
+# corr_missing <- is.na(data$corr_final)
+# data$corr_final[corr_missing] <-
+#   weighted.mean(data$corr_final[!corr_missing], 1/data$n_1[!corr_missing])
+
 # Fisher's Z transformation of the correlation coefficients
 data$corr_z <- atanh(data$corr_final)
 data$corr_z_se <- 1 / sqrt(data$n_1 - 3)
@@ -52,7 +59,13 @@ pool_sd <- function(sd1, sd2) {
 }
 
 data$cohen_d_from_summary_stats <- with(data, cohen_d(x_1, x_2, SD_1, SD_2))
-data$hedges_g <- with(data, cohen_d_from_summary_stats * (1 - 3 / (4*n_1 - 5)))
+data$cohen_d_from_test_stat <- with(data, (t / sqrt(n_1)) * sqrt(2*(1-corr_final)))
+data$cohen_d_final <- ifelse(
+  !is.na(data$cohen_d_from_summary_stats),
+  data$cohen_d_from_summary_stats,
+  data$cohen_d_from_test_stat)
+
+data$hedges_g <- with(data, cohen_d_final * (1 - 3 / (4*n_1 - 5)))
 data$hedges_g_se <- with(data, sqrt(2*(1-corr_final)/n_1 + hedges_g^2/(2*n_1)))
 
 
@@ -71,11 +84,19 @@ data$within_g_se <- with(
   sqrt((1/n_1 + within_g^2 / (2*n_1)) * 2*(1 - corr_final)) # Borenstein, Hedges, Higgins, & Rothstein, eq. 4.28
 )
 
-# Reproduce the original random effect meta-analysis (https://osf.io/yu9c3/) -----
+# The original random effect meta-analysis (https://osf.io/yu9c3/) -----
 ran.ef.raw <- metafor::rma.mv(hedges_g, V = (hedges_g_se)^2, random = ~ article|lab,data = data)
 ran.ef.raw
 
-## Reproduce in JAGS -----
+
+ran.ef.mod <- metafor::rma.mv(hedges_g, V = (hedges_g_se)^2, mods = ~ scale(age) * modality + scale(age) * semantics, random = ~ article|lab,data = data)
+ran.ef.mod
+
+
+# Limit the analysis only to semantics == 'meaningful' -----
+data <- subset(data, semantics == "Meaningful")
+
+## in JAGS -----
 # The correlation structure could be improved since the original analysis
 # Assumed that the underlying effect size for a specific study is the same
 # (using arguments random = ~ study|lab, struct = "CS")
@@ -87,17 +108,22 @@ ran.ef.raw
 df <- subset(data, select = c("study", "article", "lab", "hedges_g", "hedges_g_se"))
 df <- na.omit(df)
 metafor::rma.mv(hedges_g, V = (hedges_g_se)^2, random = ~ 1|lab/article/study, data = df)
+# Multivariate Meta-Analysis Model (k = 50; method: REML)
+#
 # Variance Components:
 #
 #             estim    sqrt  nlvls  fixed             factor
-# sigma^2.1  0.0286  0.1690      8     no                lab
-# sigma^2.2  0.0475  0.2180     14     no        lab/article
-# sigma^2.3  0.1054  0.3246     78     no  lab/article/study
+# sigma^2.1  0.0293  0.1713      8     no                lab
+# sigma^2.2  0.0990  0.3146     12     no        lab/article
+# sigma^2.3  0.0505  0.2247     50     no  lab/article/study
+#
+# Test for Heterogeneity:
+#   Q(df = 49) = 183.3296, p-val < .0001
 #
 # Model Results:
 #
-# estimate      se    zval    pval   ci.lb   ci.ub
-#   0.2504  0.0999  2.5069  0.0122  0.0546  0.4461  *
+#   estimate      se    zval    pval   ci.lb   ci.ub
+#     0.3222  0.1228  2.6243  0.0087  0.0816  0.5628  **
 
 
 model <-
@@ -153,46 +179,46 @@ samples_between_subjects <- runjags::run.jags(
   )
 summary(samples_between_subjects)
 #               Lower95 Median Upper95  Mean    SD Mode MCerr MC%ofSD SSeff AC.10  psrf
-# mu_pop          0.025  0.251   0.492 0.252 0.118   NA 0.002     2.1  2320 0.560 1.002
-# sigma_lab       0.014  0.194   0.428 0.209 0.115   NA 0.002     1.8  3066 0.436 1.001
-# sigma_article   0.043  0.224   0.431 0.231 0.101   NA 0.002     1.8  2978 0.449 1.004
-# sigma_study     0.232  0.325   0.430 0.328 0.051   NA 0.001     1.1  7856 0.154 1.001
+# mu_pop          0.036  0.322   0.603 0.322 0.143   NA 0.003     2.0  2455 0.538 1.004
+# sigma_lab       0.013  0.210   0.458 0.224 0.124   NA 0.002     1.9  2872 0.453 1.003
+# sigma_article   0.119  0.306   0.544 0.317 0.108   NA 0.001     1.4  5322 0.262 1.001
+# sigma_study     0.096  0.227   0.371 0.230 0.070   NA 0.001     1.9  2878 0.478 1.002
 
 # Comparison:  median of Bayes <-> classical estimate:
-# estimated effect size: 0.251 <-> 0.250, 95% CI: [0.025, 0.492] <-> [0.055, 0.446]
-# sd of lab offset:      0.194 <-> 0.169
-# sd of article offset:  0.224 <-> 0.218
-# sd of study offset:    0.325 <-> 0.325
+# estimated effect size: 0.322 <-> 0.322, 95% CI: [0.036, 0.603] <-> [0.082, 0.563]
+# sd of lab offset:      0.210 <-> 0.171
+# sd of article offset:  0.306 <-> 0.315
+# sd of study offset:    0.227 <-> 0.225
 # => We can reproduce the results of the classical analysis, including CIs for the meta-analytic estimate
 
 # Meta-analysis of the correlations ----
 df <- subset(data, select = c("study", "article", "lab", "corr_z", "corr_z_se"))
 df <- na.omit(df)
 metafor::rma.mv(corr_z, V = (corr_z_se)^2, random = ~ 1|lab/article/study, data = df)
-# Multivariate Meta-Analysis Model (k = 78; method: REML)
+# Multivariate Meta-Analysis Model (k = 50; method: REML)
 #
 # Variance Components:
 #
 #             estim    sqrt  nlvls  fixed             factor
-# sigma^2.1  0.0000  0.0000      8     no                lab
-# sigma^2.2  0.0224  0.1497     14     no        lab/article
-# sigma^2.3  0.0610  0.2470     78     no  lab/article/study
+# sigma^2.1  0.0018  0.0427      8     no                lab
+# sigma^2.2  0.0113  0.1061     12     no        lab/article
+# sigma^2.3  0.0717  0.2678     50     no  lab/article/study
 #
 # Test for Heterogeneity:
-#   Q(df = 77) = 132.6103, p-val < .0001
+#   Q(df = 49) = 88.4400, p-val = 0.0005
 #
 # Model Results:
 #
-# estimate      se     zval    pval   ci.lb   ci.ub     ​
-#   0.7247  0.0636  11.4035  <.0001  0.6001  0.8493  ***
+#   estimate      se     zval    pval   ci.lb   ci.ub
+#     0.7148  0.0709  10.0852  <.0001  0.5759  0.8537  ***
 
 # Convert the estimate on the transformed scale into a correlation scale
-tanh(c(estimate = 0.7247, lower = 0.6001, upper = 0.8493))
+tanh(c(estimate = 0.7148, lower = 0.5759, upper = 0.8537))
 # estimate    lower    upper
-#    0.620    0.537    0.691
+#    0.614    0.520    0.693
 
 # this results in the following point estimate of the within-subjects effect size:
-0.25 / sqrt(2*(1-0.62)) # 0.29
+0.322 / sqrt(2*(1-0.614)) # 0.366
 
 model <-
 "
@@ -243,11 +269,11 @@ samples_correlation <- runjags::run.jags(
 )
 summary(samples_correlation)
 #               Lower95 Median Upper95  Mean    SD Mode MCerr MC%ofSD SSeff AC.10  psrf
-# mu_pop          0.551  0.725   0.908 0.727 0.089   NA 0.001     1.2  7378 0.167 1.001
-# mu_pop_corr     0.511  0.620   0.729 0.618 0.055   NA 0.001     1.2  7511 0.159 1.001
-# sigma_lab       0.006  0.123   0.297 0.138 0.083   NA 0.001     1.5  4525 0.331 1.001
-# sigma_article   0.021  0.154   0.302 0.160 0.075   NA 0.001     1.6  4116 0.361 1.001
-# sigma_study     0.129  0.244   0.356 0.244 0.058   NA 0.001     1.7  3411 0.439 1.001
+# mu_pop          0.494  0.708   0.914 0.709 0.105   NA 0.001     1.1  8307 0.147 1.001
+# mu_pop_corr     0.474  0.610   0.735 0.606 0.067   NA 0.001     1.1  8164 0.153 1.001
+# sigma_lab       0.008  0.147   0.349 0.163 0.098   NA 0.002     1.5  4256 0.344 1.002
+# sigma_article   0.010  0.137   0.303 0.148 0.082   NA 0.001     1.6  3814 0.380 1.002
+# sigma_study     0.112  0.255   0.401 0.256 0.073   NA 0.001     1.7  3660 0.408 1.004
 
 
 # Estimating the within-subjects effect size ----
@@ -258,13 +284,13 @@ summary(samples_correlation)
 df <- subset(data, select = c("study", "article", "lab", "within_g", "within_g_se"))
 df <- na.omit(df)
 metafor::rma.mv(within_g, V = (within_g_se)^2, random = ~ article|lab,data = df)
-# estimate      se    zval    pval   ci.lb   ci.ub    ​
-#   0.4197  0.1313  3.1960  0.0014  0.1623  0.6770  **
+# estimate      se    zval    pval   ci.lb   ci.ub
+#   0.5078  0.1480  3.4302  0.0006  0.2176  0.7979  ***
 
 #### Nested model
 metafor::rma.mv(within_g, V = (within_g_se)^2, random = ~ 1|lab/article/study, data = df)
-# estimate      se    zval    pval   ci.lb   ci.ub   ​
-#   0.3574  0.1389  2.5727  0.0101  0.0851  0.6297  *
+# estimate      se    zval    pval   ci.lb   ci.ub
+#   0.4602  0.1849  2.4884  0.0128  0.0977  0.8226  *
 
 ### Bayesian analysis ----
 
@@ -321,10 +347,10 @@ samples_within <- runjags::run.jags(
 )
 summary(samples_within)
 #               Lower95 Median Upper95  Mean    SD Mode MCerr MC%ofSD SSeff AC.10  psrf
-# mu_pop          0.031  0.359   0.688 0.359 0.165   NA 0.005     2.9  1185 0.746 1.008
-# sigma_lab       0.010  0.200   0.487 0.224 0.138   NA 0.003     2.2  2050 0.553 1.006
-# sigma_article   0.143  0.390   0.673 0.399 0.133   NA 0.002     1.9  2896 0.429 1.003
-# sigma_study     0.400  0.509   0.631 0.513 0.059   NA 0.001     1.1  8486 0.140 1.001
+# mu_pop          0.014  0.446   0.836 0.443 0.207   NA 0.006     3.0  1121 0.752 1.003
+# sigma_lab       0.008  0.206   0.511 0.233 0.145   NA 0.003     2.1  2167 0.548 1.001
+# sigma_article   0.308  0.541   0.841 0.556 0.140   NA 0.002     1.2  7433 0.188 1.001
+# sigma_study     0.263  0.384   0.528 0.389 0.068   NA 0.001     1.1  7938 0.170 1.000
 
 within_d <- do.call(rbind.data.frame, samples_within$mcmc)$mu_pop
 hist(within_d, breaks = 100, freq = FALSE)
@@ -359,7 +385,7 @@ o <- optim(par = list(df = 2, center = 0, scale = 1), fn = fn, data = within_d,
            lower = c(1, -Inf, 0.001), upper = c(Inf, Inf, Inf),
            method = "L-BFGS-B", control = list(fnscale = -1))
 #     df center  scale
-# 10.293  0.358  0.148
+# 19.767  0.443  0.196
 
 hist(within_d, breaks = 100, freq = FALSE)
 curve(dscaledt(x = x, df = o$par[[1]], center = o$par[[2]], scale = o$par[[3]]), add = TRUE, lwd = 5)
